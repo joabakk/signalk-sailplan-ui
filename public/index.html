@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sail Plan</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #12161c;
+    color: #e6e9ef;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    background: #1b212b;
+    border-bottom: 1px solid #2a3241;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 16px; margin: 0; font-weight: 600; flex: 1 1 auto; }
+  button, select, input[type=number], input[type=text] {
+    font: inherit;
+    background: #262f3d;
+    color: #e6e9ef;
+    border: 1px solid #3a4456;
+    border-radius: 6px;
+    padding: 6px 10px;
+  }
+  button { cursor: pointer; }
+  button:hover { background: #303b4d; }
+  button.primary { background: #2e7d32; border-color: #2e7d32; }
+  button.primary:hover { background: #34903a; }
+  button.danger { background: #7d2e2e; border-color: #7d2e2e; }
+  button:disabled { opacity: .4; cursor: default; }
+  #status { font-size: 12px; color: #9aa4b2; flex-basis: 100%; }
+
+  #layout { display: flex; height: calc(100vh - 53px); }
+  #stage-wrap {
+    flex: 1 1 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    overflow: auto;
+  }
+  #stage {
+    position: relative;
+    max-width: 100%;
+    max-height: 100%;
+    line-height: 0;
+  }
+  #stage img { display: block; max-width: 100%; max-height: calc(100vh - 85px); user-select: none; }
+  #overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+  #overlay polygon {
+    fill: rgba(255,255,255,0.05);
+    stroke: #6b7686;
+    stroke-width: 0.3;
+    vector-effect: non-scaling-stroke;
+    cursor: pointer;
+    transition: fill .15s;
+  }
+  #overlay polygon:hover { fill: rgba(255,255,255,0.18); }
+  #overlay polygon.active { fill: rgba(46,204,113,0.5); stroke: #2ecc71; }
+  #overlay polygon.reefed { fill: rgba(241,196,15,0.5); stroke: #f1c40f; }
+  #overlay circle.point { fill: #ff5252; stroke: #fff; stroke-width: 0.4; vector-effect: non-scaling-stroke; }
+  #overlay polyline.drawing { fill: none; stroke: #ff5252; stroke-width: 0.4; vector-effect: non-scaling-stroke; }
+  #overlay text.hlabel { font-size: 3px; fill: #fff; text-anchor: middle; pointer-events: none; paint-order: stroke; stroke: #000; stroke-width: 0.5px; }
+
+  #empty-msg { color: #9aa4b2; text-align: center; padding: 40px; }
+
+  #sidebar {
+    width: 300px;
+    flex: 0 0 auto;
+    border-left: 1px solid #2a3241;
+    background: #161b23;
+    padding: 12px;
+    overflow-y: auto;
+    display: none;
+  }
+  #sidebar.open { display: block; }
+  #sidebar h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: #9aa4b2; margin: 16px 0 8px; }
+  #sidebar h2:first-child { margin-top: 0; }
+  .form-row { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
+  .form-row label { font-size: 12px; color: #9aa4b2; }
+  .hotspot-row {
+    display: flex; align-items: center; gap: 6px;
+    padding: 6px 4px; border-bottom: 1px solid #232b38; font-size: 13px;
+  }
+  .hotspot-row .name { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .hint { font-size: 12px; color: #9aa4b2; line-height: 1.4; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Sail Plan</h1>
+  <input type="file" id="file-input" accept="image/png,image/jpeg,image/svg+xml,image/webp" style="display:none">
+  <button id="upload-btn">Upload sail plan…</button>
+  <button id="mode-btn">Edit hotspots</button>
+  <div id="status"></div>
+</header>
+
+<div id="layout">
+  <div id="stage-wrap">
+    <div id="stage">
+      <img id="sail-image" alt="Sail plan" style="display:none">
+      <svg id="overlay" viewBox="0 0 100 100" preserveAspectRatio="none"></svg>
+    </div>
+    <div id="empty-msg">No sail plan uploaded yet. Click "Upload sail plan…" to add a diagram (PNG/JPG/SVG), then "Edit hotspots" to mark each sail and reef.</div>
+  </div>
+
+  <div id="sidebar">
+    <h2>New hotspot</h2>
+    <p class="hint">Click points on the image to trace the sail's outline (min. 3), then fill this in and press "Add".</p>
+    <div class="form-row">
+      <label>Sail</label>
+      <select id="hs-sail"></select>
+    </div>
+    <div class="form-row">
+      <label>Reef level (0 = full sail / set)</label>
+      <input type="number" id="hs-reef" min="0" value="0">
+    </div>
+    <div class="form-row">
+      <label>Label</label>
+      <input type="text" id="hs-label" placeholder="e.g. Main - Reef 1">
+    </div>
+    <div style="display:flex; gap:6px;">
+      <button id="hs-add" class="primary">Add hotspot</button>
+      <button id="hs-clear">Clear points</button>
+    </div>
+
+    <h2>Hotspots (<span id="hs-count">0</span>)</h2>
+    <div id="hs-list"></div>
+
+    <h2></h2>
+    <button id="save-btn" class="primary" style="width:100%;">Save hotspots</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  const PLUGIN_BASE = '.'; // this webapp is served from /plugins/signalk-sailplan-ui/, API is mounted at the same base
+  let SAILSCONFIG_BASE = '/plugins/sailsconfiguration'; // overridden by /config once loaded
+  let POLL_INTERVAL_MS = 4000; // overridden by /config once loaded
+
+  const statusEl = document.getElementById('status');
+  const stage = document.getElementById('stage');
+  const img = document.getElementById('sail-image');
+  const overlay = document.getElementById('overlay');
+  const emptyMsg = document.getElementById('empty-msg');
+  const sidebar = document.getElementById('sidebar');
+  const modeBtn = document.getElementById('mode-btn');
+  const uploadBtn = document.getElementById('upload-btn');
+  const fileInput = document.getElementById('file-input');
+  const hsSail = document.getElementById('hs-sail');
+  const hsReef = document.getElementById('hs-reef');
+  const hsLabel = document.getElementById('hs-label');
+  const hsAdd = document.getElementById('hs-add');
+  const hsClear = document.getElementById('hs-clear');
+  const hsList = document.getElementById('hs-list');
+  const hsCount = document.getElementById('hs-count');
+  const saveBtn = document.getElementById('save-btn');
+
+  let editMode = false;
+  let hotspots = [];       // saved hotspots: {id, sailId, label, reefs, points:[[x,y],...]}
+  let drawingPoints = [];  // points for the hotspot currently being traced
+  let inventory = {};      // sailId -> {name, active, reducedState}
+  let pollTimer = null;
+
+  function setStatus(msg) { statusEl.textContent = msg || ''; }
+
+  function svgPointFromEvent(evt) {
+    const rect = stage.getBoundingClientRect();
+    const x = ((evt.clientX - rect.left) / rect.width) * 100;
+    const y = ((evt.clientY - rect.top) / rect.height) * 100;
+    return [Math.max(0, Math.min(100, x)), Math.max(0, Math.min(100, y))];
+  }
+
+  // ---------- data loading ----------
+
+  async function loadConfig() {
+    const res = await fetch(`${PLUGIN_BASE}/config`, { credentials: 'include' });
+    if (!res.ok) return;
+    const cfg = await res.json();
+    hotspots = cfg.hotspots || [];
+    if (cfg.sailsConfigBase) SAILSCONFIG_BASE = cfg.sailsConfigBase;
+    if (cfg.pollInterval) POLL_INTERVAL_MS = cfg.pollInterval * 1000;
+    if (cfg.imageUrl) {
+      img.src = `${PLUGIN_BASE}/image?ts=${Date.now()}`;
+      img.style.display = 'block';
+      emptyMsg.style.display = 'none';
+    } else {
+      img.style.display = 'none';
+      emptyMsg.style.display = 'block';
+    }
+    renderHotspotList();
+    render();
+  }
+
+  async function loadInventory() {
+    try {
+      const res = await fetch('/signalk/v1/api/vessels/self/sails/inventory', { credentials: 'include' });
+      if (!res.ok) { inventory = {}; return; }
+      const data = await res.json();
+      inventory = {};
+      Object.entries(data || {}).forEach(([id, entry]) => {
+        const v = entry && entry.value ? entry.value : entry;
+        inventory[id] = v;
+      });
+      populateSailSelect();
+    } catch (e) {
+      inventory = {};
+    }
+  }
+
+  function populateSailSelect() {
+    const current = hsSail.value;
+    hsSail.innerHTML = '';
+    Object.entries(inventory).forEach(([id, sail]) => {
+      const opt = document.createElement('option');
+      opt.value = id;
+      opt.textContent = sail.name || id;
+      hsSail.appendChild(opt);
+    });
+    if (current) hsSail.value = current;
+  }
+
+  // ---------- rendering ----------
+
+  function polygonPointsAttr(points) {
+    return points.map(p => p.join(',')).join(' ');
+  }
+
+  function centroid(points) {
+    const n = points.length;
+    const x = points.reduce((s, p) => s + p[0], 0) / n;
+    const y = points.reduce((s, p) => s + p[1], 0) / n;
+    return [x, y];
+  }
+
+  function render() {
+    overlay.innerHTML = '';
+
+    hotspots.forEach(h => {
+      const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+      poly.setAttribute('points', polygonPointsAttr(h.points));
+      poly.dataset.id = h.id;
+
+      const sail = inventory[h.sailId];
+      const reefs = h.reefs || 0;
+      if (sail && sail.active && (sail.reducedState?.reefs || 0) === reefs) {
+        poly.classList.add(reefs > 0 ? 'reefed' : 'active');
+      }
+      if (!editMode) {
+        poly.addEventListener('click', () => onHotspotClick(h));
+      }
+      overlay.appendChild(poly);
+
+      if (editMode) {
+        const [cx, cy] = centroid(h.points);
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.setAttribute('x', cx);
+        text.setAttribute('y', cy);
+        text.setAttribute('class', 'hlabel');
+        text.textContent = h.label || h.sailId;
+        overlay.appendChild(text);
+      }
+    });
+
+    if (editMode && drawingPoints.length) {
+      const line = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+      line.setAttribute('points', polygonPointsAttr(drawingPoints));
+      line.setAttribute('class', 'drawing');
+      overlay.appendChild(line);
+      drawingPoints.forEach(p => {
+        const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        c.setAttribute('cx', p[0]);
+        c.setAttribute('cy', p[1]);
+        c.setAttribute('r', 0.8);
+        c.setAttribute('class', 'point');
+        overlay.appendChild(c);
+      });
+    }
+  }
+
+  function renderHotspotList() {
+    hsCount.textContent = hotspots.length;
+    hsList.innerHTML = '';
+    hotspots.forEach(h => {
+      const row = document.createElement('div');
+      row.className = 'hotspot-row';
+      const name = document.createElement('div');
+      name.className = 'name';
+      name.textContent = h.label || `${h.sailId} (reef ${h.reefs || 0})`;
+      const del = document.createElement('button');
+      del.textContent = '✕';
+      del.title = 'Delete';
+      del.addEventListener('click', () => {
+        hotspots = hotspots.filter(x => x.id !== h.id);
+        renderHotspotList();
+        render();
+      });
+      row.appendChild(name);
+      row.appendChild(del);
+      hsList.appendChild(row);
+    });
+  }
+
+  // ---------- interaction: view mode (set sail state) ----------
+
+  async function onHotspotClick(h) {
+    const sail = inventory[h.sailId];
+    if (!sail) { setStatus(`Unknown sail "${h.sailId}" — check hotspot config.`); return; }
+    const reefs = h.reefs || 0;
+    const isCurrent = sail.active && (sail.reducedState?.reefs || 0) === reefs;
+    setStatus(isCurrent ? `Stowing ${sail.name || h.sailId}…` : `Setting ${sail.name || h.sailId}…`);
+    try {
+      if (isCurrent) {
+        await putJson(`${SAILSCONFIG_BASE}/sails/${h.sailId}/active`, { value: false });
+      } else {
+        await putJson(`${SAILSCONFIG_BASE}/sails/${h.sailId}/reducedState`, { reefs, furledRatio: h.furledRatio || 0 });
+        await putJson(`${SAILSCONFIG_BASE}/sails/${h.sailId}/active`, { value: true });
+      }
+      await loadInventory();
+      render();
+      setStatus('');
+    } catch (e) {
+      setStatus('Failed to update sail state — is sailsconfiguration installed and are you logged in as admin?');
+    }
+  }
+
+  async function putJson(url, body) {
+    const res = await fetch(url, {
+      method: 'PUT',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if (!res.ok) throw new Error(`${url} -> ${res.status}`);
+  }
+
+  // ---------- interaction: edit mode (draw hotspots) ----------
+
+  stage.addEventListener('click', evt => {
+    if (!editMode || img.style.display === 'none') return;
+    if (evt.target.closest('#overlay') === null) return;
+    drawingPoints.push(svgPointFromEvent(evt));
+    render();
+  });
+
+  hsClear.addEventListener('click', () => { drawingPoints = []; render(); });
+
+  hsAdd.addEventListener('click', () => {
+    if (drawingPoints.length < 3) { setStatus('Trace at least 3 points before adding.'); return; }
+    if (!hsSail.value) { setStatus('Load the sail inventory (sailsconfiguration) first.'); return; }
+    hotspots.push({
+      id: 'h' + Date.now().toString(36),
+      sailId: hsSail.value,
+      reefs: Number(hsReef.value) || 0,
+      label: hsLabel.value || `${hsSail.options[hsSail.selectedIndex].textContent}${Number(hsReef.value) ? ' - reef ' + hsReef.value : ''}`,
+      points: drawingPoints
+    });
+    drawingPoints = [];
+    hsLabel.value = '';
+    renderHotspotList();
+    render();
+    setStatus('');
+  });
+
+  saveBtn.addEventListener('click', async () => {
+    try {
+      await putJson(`${PLUGIN_BASE}/hotspots`, hotspots);
+      setStatus('Saved.');
+    } catch (e) {
+      setStatus('Failed to save hotspots.');
+    }
+  });
+
+  // ---------- upload ----------
+
+  uploadBtn.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', () => {
+    const file = fileInput.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async () => {
+      setStatus('Uploading…');
+      try {
+        await putJson(`${PLUGIN_BASE}/image`, { dataUrl: reader.result });
+        await loadConfig();
+        setStatus('');
+      } catch (e) {
+        setStatus('Upload failed.');
+      }
+    };
+    reader.readAsDataURL(file);
+  });
+
+  // ---------- mode toggle ----------
+
+  modeBtn.addEventListener('click', () => {
+    editMode = !editMode;
+    sidebar.classList.toggle('open', editMode);
+    modeBtn.textContent = editMode ? 'Done editing' : 'Edit hotspots';
+    drawingPoints = [];
+    render();
+  });
+
+  // ---------- polling ----------
+
+  async function poll() {
+    await loadInventory();
+    if (!editMode) render();
+  }
+
+  (async function init() {
+    await loadConfig();
+    await loadInventory();
+    render();
+    pollTimer = setInterval(poll, POLL_INTERVAL_MS);
+  })();
+})();
+</script>
+</body>
+</html>
