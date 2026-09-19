@@ -2,9 +2,11 @@
 
 Upload a sail plan diagram, trace a clickable hotspot over each sail (and each reef state), and tap a hotspot to tell Signal K which sails are currently set — no menus, no forms while you're on the helm.
 
-![Example sail plan with all sails set](docs/example-sailplan.png)
+![The app with all five sails set, showing the live sail area readout](docs/screenshot-app.png)
 
-*Example sail plan (a gaff ketch: jib, foresail, mainsail, topsail, mizzen) uploaded through the app.*
+*A gaff ketch (jib, foresail, mainsail, topsail, mizzen) with every sail set — the header reads the live computed area from `sailsconfiguration`. This is the sail plan diagram you'd upload:*
+
+![Example sail plan diagram](docs/example-sailplan.png)
 
 ## How it fits together
 
