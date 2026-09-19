@@ -1,6 +1,6 @@
 {
   "name": "signalk-sailplan-ui",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Signal K webapp: upload a sail plan diagram and click on sails/reefs to set which are currently flying. Writes state via @signalk/sailsconfiguration.",
   "main": "index.js",
   "scripts": {
