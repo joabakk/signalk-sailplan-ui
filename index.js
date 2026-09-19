@@ -89,6 +89,26 @@ module.exports = function (app) {
     Object.entries(EXT_TO_MIME).map(([ext, mime]) => [mime, ext])
   );
 
+  // An <img src="...svg"> with only a viewBox and no width/height has no
+  // intrinsic size, which renders as 0x0 in some layouts (e.g. a flex
+  // parent with no other definite size to fall back to). Hand-authored
+  // sail plan SVGs commonly omit width/height, so inject them from the
+  // viewBox rather than relying on every consumer's CSS to cope.
+  function ensureSvgHasDimensions(buffer) {
+    const svg = buffer.toString('utf8');
+    const rootTagMatch = svg.match(/<svg\b[^>]*>/i);
+    if (!rootTagMatch) return buffer;
+    const rootTag = rootTagMatch[0];
+    if (/\bwidth\s*=/.test(rootTag) && /\bheight\s*=/.test(rootTag)) return buffer;
+    const viewBoxMatch = rootTag.match(
+      /\bviewBox\s*=\s*["']\s*[\d.-]+\s+[\d.-]+\s+([\d.]+)\s+([\d.]+)\s*["']/i
+    );
+    if (!viewBoxMatch) return buffer;
+    const [, vbWidth, vbHeight] = viewBoxMatch;
+    const newRootTag = rootTag.replace(/<svg\b/i, `<svg width="${vbWidth}" height="${vbHeight}"`);
+    return Buffer.from(svg.replace(rootTag, newRootTag), 'utf8');
+  }
+
   plugin.start = function (options) {
     pluginOptions = { ...defaultOptions, ...(options || {}) };
     debug('starting with options %o', pluginOptions);
@@ -101,8 +121,11 @@ module.exports = function (app) {
   plugin.registerWithRouter = function (router) {
     router.use(bodyParser.json({ limit: '20mb' }));
 
+    // Note: this is deliberately not named /config — Signal K's server reserves
+    // GET/POST /plugins/<id>/config for its own enable/configuration mechanism
+    // and a route here with that name is shadowed by it.
     // { imageUrl, hotspots, sailsConfigBase, pollInterval }
-    router.get('/config', function (req, res) {
+    router.get('/state', function (req, res) {
       const cfg = readConfig();
       res.json({
         imageUrl: cfg.imageExt ? './image' : null,
@@ -131,7 +154,11 @@ module.exports = function (app) {
       if (cfg.imageExt && cfg.imageExt !== ext && fs.existsSync(imagePath(cfg.imageExt))) {
         fs.unlinkSync(imagePath(cfg.imageExt));
       }
-      fs.writeFileSync(imagePath(ext), Buffer.from(match[2], 'base64'));
+      let imageBuffer = Buffer.from(match[2], 'base64');
+      if (ext === '.svg') {
+        imageBuffer = ensureSvgHasDimensions(imageBuffer);
+      }
+      fs.writeFileSync(imagePath(ext), imageBuffer);
       cfg.imageExt = ext;
       writeConfig(cfg);
       res.json({ imageUrl: './image' });

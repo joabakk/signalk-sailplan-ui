@@ -38,6 +38,8 @@
   button.danger { background: #7d2e2e; border-color: #7d2e2e; }
   button:disabled { opacity: .4; cursor: default; }
   #status { font-size: 12px; color: #9aa4b2; flex-basis: 100%; }
+  #area-readout { font-size: 13px; color: #9aa4b2; }
+  #area-readout strong { color: #e6e9ef; }
 
   #layout { display: flex; height: calc(100vh - 53px); }
   #stage-wrap {
@@ -48,25 +50,36 @@
     padding: 16px;
     overflow: auto;
   }
+  /* #stage and img are given an explicit pixel width/height by JS
+     (resizeStage), not CSS. Neither plain %/vw sizing nor width:auto
+     covers this: an image can have a tiny intrinsic size (e.g. an SVG
+     with viewBox "0 0 100 100") that CSS auto-sizing never scales up
+     past, and vw/vh ignores the edit sidebar shrinking the available
+     area. Computing the box in JS from the image's real aspect ratio
+     also keeps the %-coordinate hotspot overlay pixel-aligned with the
+     image — no object-fit letterbox gap to account for. */
   #stage {
     position: relative;
-    max-width: 100%;
-    max-height: 100%;
     line-height: 0;
   }
-  #stage img { display: block; max-width: 100%; max-height: calc(100vh - 85px); user-select: none; }
+  #stage img { display: block; user-select: none; }
   #overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
   #overlay polygon {
-    fill: rgba(255,255,255,0.05);
+    fill: rgba(255,255,255,0.06);
     stroke: #6b7686;
-    stroke-width: 0.3;
+    stroke-width: 0.4;
     vector-effect: non-scaling-stroke;
     cursor: pointer;
-    transition: fill .15s;
+    transition: fill .12s, stroke-width .12s;
   }
-  #overlay polygon:hover { fill: rgba(255,255,255,0.18); }
-  #overlay polygon.active { fill: rgba(46,204,113,0.5); stroke: #2ecc71; }
-  #overlay polygon.reefed { fill: rgba(241,196,15,0.5); stroke: #f1c40f; }
+  /* Button-like feedback: a visible hover state on every sail (so it
+     reads as clickable before it's set), and a solid — not just
+     tinted — fill once active so the whole sail clearly changes color. */
+  #overlay polygon:hover { fill: rgba(255,255,255,0.24); stroke-width: 0.9; }
+  #overlay polygon.active { fill: rgba(46,204,113,0.85); stroke: #2ecc71; stroke-width: 0.7; }
+  #overlay polygon.active:hover { fill: rgba(56,224,123,0.95); }
+  #overlay polygon.reefed { fill: rgba(241,196,15,0.85); stroke: #f1c40f; stroke-width: 0.7; }
+  #overlay polygon.reefed:hover { fill: rgba(250,210,40,0.95); }
   #overlay circle.point { fill: #ff5252; stroke: #fff; stroke-width: 0.4; vector-effect: non-scaling-stroke; }
   #overlay polyline.drawing { fill: none; stroke: #ff5252; stroke-width: 0.4; vector-effect: non-scaling-stroke; }
   #overlay text.hlabel { font-size: 3px; fill: #fff; text-anchor: middle; pointer-events: none; paint-order: stroke; stroke: #000; stroke-width: 0.5px; }
@@ -99,6 +112,7 @@
 
 <header>
   <h1>Sail Plan</h1>
+  <div id="area-readout"></div>
   <input type="file" id="file-input" accept="image/png,image/jpeg,image/svg+xml,image/webp" style="display:none">
   <button id="upload-btn">Upload sail plan…</button>
   <button id="mode-btn">Edit hotspots</button>
@@ -144,11 +158,15 @@
 
 <script>
 (function () {
-  const PLUGIN_BASE = '.'; // this webapp is served from /plugins/signalk-sailplan-ui/, API is mounted at the same base
-  let SAILSCONFIG_BASE = '/plugins/sailsconfiguration'; // overridden by /config once loaded
+  // The webapp (public/) is served at /signalk-sailplan-ui/, but registerWithRouter's
+  // API routes are mounted separately at /plugins/signalk-sailplan-ui/ — these are
+  // NOT the same base path, so this must be absolute.
+  const PLUGIN_BASE = '/plugins/signalk-sailplan-ui';
+  let SAILSCONFIG_BASE = '/plugins/sailsconfiguration'; // overridden by /state once loaded
   let POLL_INTERVAL_MS = 4000; // overridden by /config once loaded
 
   const statusEl = document.getElementById('status');
+  const areaEl = document.getElementById('area-readout');
   const stage = document.getElementById('stage');
   const img = document.getElementById('sail-image');
   const overlay = document.getElementById('overlay');
@@ -174,6 +192,26 @@
 
   function setStatus(msg) { statusEl.textContent = msg || ''; }
 
+  const stageWrap = document.getElementById('stage-wrap');
+
+  function resizeStage() {
+    if (!img.naturalWidth || !img.naturalHeight) return;
+    const padding = 32; // #stage-wrap has 16px padding on each side
+    const availW = Math.max(50, stageWrap.clientWidth - padding);
+    const availH = Math.max(50, stageWrap.clientHeight - padding);
+    const ratio = img.naturalWidth / img.naturalHeight;
+    let w = availW;
+    let h = w / ratio;
+    if (h > availH) {
+      h = availH;
+      w = h * ratio;
+    }
+    stage.style.width = img.style.width = w + 'px';
+    stage.style.height = img.style.height = h + 'px';
+  }
+  img.addEventListener('load', resizeStage);
+  window.addEventListener('resize', resizeStage);
+
   function svgPointFromEvent(evt) {
     const rect = stage.getBoundingClientRect();
     const x = ((evt.clientX - rect.left) / rect.width) * 100;
@@ -184,7 +222,7 @@
   // ---------- data loading ----------
 
   async function loadConfig() {
-    const res = await fetch(`${PLUGIN_BASE}/config`, { credentials: 'include' });
+    const res = await fetch(`${PLUGIN_BASE}/state`, { credentials: 'include' });
     if (!res.ok) return;
     const cfg = await res.json();
     hotspots = cfg.hotspots || [];
@@ -215,6 +253,20 @@
       populateSailSelect();
     } catch (e) {
       inventory = {};
+    }
+  }
+
+  async function loadArea() {
+    try {
+      const res = await fetch('/signalk/v1/api/vessels/self/sails/area', { credentials: 'include' });
+      if (!res.ok) { areaEl.textContent = ''; return; }
+      const data = await res.json();
+      const active = data?.active?.value;
+      const total = data?.total?.value;
+      if (typeof active !== 'number' || typeof total !== 'number') { areaEl.textContent = ''; return; }
+      areaEl.innerHTML = `<strong>${active.toFixed(1)}</strong> / ${total.toFixed(1)} m&sup2; set`;
+    } catch (e) {
+      areaEl.textContent = '';
     }
   }
 
@@ -408,19 +460,20 @@
     sidebar.classList.toggle('open', editMode);
     modeBtn.textContent = editMode ? 'Done editing' : 'Edit hotspots';
     drawingPoints = [];
+    resizeStage(); // sidebar open/close changes stage-wrap's available width
     render();
   });
 
   // ---------- polling ----------
 
   async function poll() {
-    await loadInventory();
+    await Promise.all([loadInventory(), loadArea()]);
     if (!editMode) render();
   }
 
   (async function init() {
     await loadConfig();
-    await loadInventory();
+    await Promise.all([loadInventory(), loadArea()]);
     render();
     pollTimer = setInterval(poll, POLL_INTERVAL_MS);
   })();
