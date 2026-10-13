@@ -59,6 +59,14 @@ Leaving edit mode returns to the normal view: click a hotspot to set that sail/r
 | `sailsConfigPluginId` | `sailsconfiguration` | Plugin id of the installed sail state provider, in case you run a fork or a renamed install of `@signalk/sailsconfiguration`. |
 | `pollInterval` | `4` | Seconds between re-reading sail state to refresh the highlighted hotspots. |
 
+## Development
+
+```sh
+npm test
+```
+
+Runs offline unit tests (Node's built-in `node:test`, Node 18+) against a mock Signal K app and router — no running server needed.
+
 ## License
 
 ISC

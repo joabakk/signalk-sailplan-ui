@@ -1,21 +1,31 @@
 {
   "name": "signalk-sailplan-ui",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Signal K webapp: upload a sail plan diagram and click on sails/reefs to set which are currently flying. Writes state via @signalk/sailsconfiguration.",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"no tests\" && exit 0"
+    "test": "node --test \"test/unit/*.test.js\""
   },
   "keywords": [
     "signalk-node-server-plugin",
     "signalk-category-utility",
     "signalk-webapp"
   ],
-  "author": "",
+  "author": "Joachim Bakke",
   "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/joabakk/signalk-sailplan-ui.git"
+  },
+  "engines": {
+    "node": ">=18"
+  },
   "signalk": {
     "displayName": "Sail Plan",
-    "appIcon": "icon.png"
+    "appIcon": "icon.png",
+    "screenshots": [
+      "docs/screenshot-app.png"
+    ]
   },
   "dependencies": {
     "body-parser": "^1.20.2"
