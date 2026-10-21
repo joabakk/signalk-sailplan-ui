@@ -52,6 +52,36 @@ Or install both from the Signal K App Store (search "Sails Configuration" and "S
 
 Leaving edit mode returns to the normal view: click a hotspot to set that sail/reef state, click it again to stow the sail.
 
+## Access levels and MFD tiles
+
+Signal K 2.x treats every `/plugins/<id>/...` route as admin-only unless the plugin opens it with `router.access(level)`. A device token, such as the one [signalk-navico-embedder](https://github.com/lukeescude/signalk-navico-embedder) injects for an MFD, is `readwrite` or `readonly`, never admin. So the routes a display needs are opened, and configuration stays admin-only:
+
+| Route | Method | Access | Needed on an MFD |
+|---|---|---|---|
+| `/signalk/v1/api/signalk-sailplan-ui/state` and `/image` | GET | as the Signal K data API (`allow_readonly` or any token) | yes, the webapp reads from here |
+| `/plugins/signalk-sailplan-ui/state` and `/image` | GET | `readonly` | same data, for clients that use `/plugins/` |
+| `/plugins/signalk-sailplan-ui/image` and `/hotspots` | PUT | admin | no, set up from a normal browser |
+| `/signalk/v1/api/vessels/self/sails/inventory` and `/area` | GET | as the Signal K data API | yes (published by `sailsconfiguration`) |
+| `/plugins/sailsconfiguration/sails/:id/active` and `/reducedState` | PUT | whatever `sailsconfiguration` sets | only to set sails from the MFD |
+
+On servers without `router.access` the plugin registers plain routes instead; the `/signalk/v1/api/...` read path works there too.
+
+### Setting sails from an MFD
+
+Reading works with any token. Setting a sail calls `sailsconfiguration`, which is a different plugin, and as published (1.1.0) it leaves those routes admin-only, so a `readwrite` token gets `401`. They need `router.access('readwrite')` on the two `PUT /sails/:id/...` routes (and `readonly` on `GET /sails`). Until that is released, tap-to-set only works with an admin login; the page then says so instead of failing silently.
+
+The proxy must also forward that plugin's path. signalk-navico-embedder 1.8.0 forwards `/signalk`, `/skServer/loginStatus`, and for every enabled app both its path and `/plugins/<app path>`. That covers this plugin (id and webapp path are both `signalk-sailplan-ui`) but not `sailsconfiguration`, whose id differs from its webapp path `/@signalk/sailsconfiguration`. In an embedder build that has an `extraPluginPaths` option, add the plugin id `sailsconfiguration`; 1.8.0 as published has no such option, and without it the proxy answers `403` for those requests.
+
+### What the page tells you when something fails
+
+Every failed call is shown in the header with its method, path and status, instead of a generic error or an empty page:
+
+- **401** is Signal K refusing the request. It answers 401 both for "no valid login" and "access level too low", so the page also asks `/skServer/loginStatus` and says who you are logged in as.
+- **403** is not from Signal K. It means a proxy in front of it blocked the path, or the client's IP.
+- **404 on a read** means nothing is published there, and is shown as "No data", not as an error.
+
+Unauthenticated reads (no token) need `allow_readonly` in Signal K's security settings, or security off. A `readonly` or higher token works either way.
+
 ## Configuration
 
 | Setting | Default | Description |

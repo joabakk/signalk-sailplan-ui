@@ -19,17 +19,38 @@ function makeApp() {
   };
 }
 
-function makeRouter() {
+// Stand-in for the router Signal K hands to registerWithRouter. Like the real
+// one it has access(level), which registers a route at a given access level;
+// `levels` records what was registered that way. Routes put directly on the
+// router get no level, which on a real server means admin-only. Pass
+// { access: false } to simulate an older server that has no router.access.
+function makeRouter(options) {
   const routes = {};
+  const levels = {};
   const middleware = [];
   const router = {
     routes,
+    levels,
     middleware,
     use: (fn) => middleware.push(fn),
     get: (p, fn) => { routes['GET ' + p] = fn; },
     put: (p, fn) => { routes['PUT ' + p] = fn; },
     post: (p, fn) => { routes['POST ' + p] = fn; }
   };
+  if (!options || options.access !== false) {
+    router.access = (level) => {
+      const scoped = {};
+      ['get', 'put', 'post', 'patch', 'delete'].forEach((method) => {
+        scoped[method] = (p, fn) => {
+          const key = method.toUpperCase() + ' ' + p;
+          routes[key] = fn;
+          levels[key] = level;
+          return scoped;
+        };
+      });
+      return scoped;
+    };
+  }
   return router;
 }
 
@@ -63,13 +84,15 @@ async function call(router, method, p, body) {
   return res;
 }
 
-function setup(options) {
+function setup(options, routerOptions) {
   const app = makeApp();
   const plugin = createPlugin(app);
-  const router = makeRouter();
+  const router = makeRouter(routerOptions);
+  const apiRouter = makeRouter();
   plugin.start(options);
   plugin.registerWithRouter(router);
-  return { app, plugin, router };
+  plugin.signalKApiRoutes(apiRouter);
+  return { app, plugin, router, apiRouter };
 }
 
 module.exports = { makeApp, makeRouter, call, setup, createPlugin };

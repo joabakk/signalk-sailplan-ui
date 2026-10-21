@@ -109,6 +109,34 @@ module.exports = function (app) {
     return Buffer.from(svg.replace(rootTag, newRootTag), 'utf8');
   }
 
+  // router.access(level) opens a single route to readonly/readwrite users;
+  // routes registered directly on the router require admin. Servers that
+  // predate router.access only have the plain router, so fall back to it.
+  function scoped(router, level) {
+    return typeof router.access === 'function' ? router.access(level) : router;
+  }
+
+  // { imageUrl, hotspots, sailsConfigBase, pollInterval }
+  function handleState(req, res) {
+    const cfg = readConfig();
+    res.json({
+      imageUrl: cfg.imageExt ? './image' : null,
+      hotspots: cfg.hotspots || [],
+      sailsConfigBase: '/plugins/' + pluginOptions.sailsConfigPluginId,
+      pollInterval: pluginOptions.pollInterval
+    });
+  }
+
+  function handleImage(req, res) {
+    const cfg = readConfig();
+    if (!cfg.imageExt || !fs.existsSync(imagePath(cfg.imageExt))) {
+      res.sendStatus(404);
+      return;
+    }
+    res.contentType(EXT_TO_MIME[cfg.imageExt]);
+    fs.createReadStream(imagePath(cfg.imageExt)).pipe(res);
+  }
+
   plugin.start = function (options) {
     pluginOptions = { ...defaultOptions, ...(options || {}) };
     debug('starting with options %o', pluginOptions);
@@ -124,16 +152,10 @@ module.exports = function (app) {
     // Note: this is deliberately not named /config — Signal K's server reserves
     // GET/POST /plugins/<id>/config for its own enable/configuration mechanism
     // and a route here with that name is shadowed by it.
-    // { imageUrl, hotspots, sailsConfigBase, pollInterval }
-    router.get('/state', function (req, res) {
-      const cfg = readConfig();
-      res.json({
-        imageUrl: cfg.imageExt ? './image' : null,
-        hotspots: cfg.hotspots || [],
-        sailsConfigBase: '/plugins/' + pluginOptions.sailsConfigPluginId,
-        pollInterval: pluginOptions.pollInterval
-      });
-    });
+    // Reading is opened to readonly users (e.g. a device token on an MFD).
+    // Uploading an image and editing hotspots is configuration, so those PUTs
+    // are registered directly and stay admin-only.
+    scoped(router, 'readonly').get('/state', handleState);
 
     // body: { dataUrl: "data:image/png;base64,...." }
     router.put('/image', function (req, res) {
@@ -164,15 +186,7 @@ module.exports = function (app) {
       res.json({ imageUrl: './image' });
     });
 
-    router.get('/image', function (req, res) {
-      const cfg = readConfig();
-      if (!cfg.imageExt || !fs.existsSync(imagePath(cfg.imageExt))) {
-        res.sendStatus(404);
-        return;
-      }
-      res.contentType(EXT_TO_MIME[cfg.imageExt]);
-      fs.createReadStream(imagePath(cfg.imageExt)).pipe(res);
-    });
+    scoped(router, 'readonly').get('/image', handleImage);
 
     // body: [{ id, sailId, label, reefs, furledRatio, points: [[xPct,yPct], ...] }, ...]
     router.put('/hotspots', function (req, res) {
@@ -185,6 +199,18 @@ module.exports = function (app) {
       writeConfig(cfg);
       res.json({ hotspots: cfg.hotspots });
     });
+  };
+
+  // The same two reads under /signalk/v1/api. A proxy in front of Signal K
+  // (signalk-navico-embedder, signalk-mfd-plugin) only forwards /signalk and
+  // the app's own path, never /plugins/<id>, so this is the path the webapp
+  // reads from. It also covers servers where /plugins/<id> is admin-only but
+  // router.access does not exist. The namespace is shared between all
+  // plugins, so these routes carry the plugin id as a prefix.
+  plugin.signalKApiRoutes = function (router) {
+    router.get('/' + pluginId + '/state', handleState);
+    router.get('/' + pluginId + '/image', handleImage);
+    return router;
   };
 
   return plugin;
