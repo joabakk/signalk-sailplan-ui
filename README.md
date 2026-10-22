@@ -52,6 +52,35 @@ Or install both from the Signal K App Store (search "Sails Configuration" and "S
 
 Leaving edit mode returns to the normal view: click a hotspot to set that sail/reef state, click it again to stow the sail.
 
+## Embedding in another page
+
+Open the app with `?embed=1` to show only the clickable diagram and the area readout. The title, upload, hotspot editing and side panel are hidden, so a host page such as a logbook can put it in a modal:
+
+```html
+<iframe src="/signalk-sailplan-ui/?embed=1" style="width:100%;height:480px;border:0"></iframe>
+```
+
+The page tells its host what happens with `window.postMessage`. Every message has `source: 'signalk-sailplan-ui'` and `version: 1`:
+
+| `type` | When | Other fields |
+|---|---|---|
+| `ready` | after the first load | `ok` (the plan was fetched), `hasPlan` (an image has been uploaded), `hotspots` (how many) |
+| `sail-changed` | after the user sets, reefs or stows a sail and the change went through | `sail: { id, name, active, reefs }`, the state after the change |
+
+`sail-changed` is only sent for a change made in the embedded page, not for one made elsewhere.
+
+Messages go to the app's own origin, so a host on the same server needs nothing more. A host on another origin names itself with `?embed=1&origin=https://host.example`. They are never sent to `*`. The host should check `event.origin` and `event.data.source`:
+
+```js
+window.addEventListener('message', (event) => {
+  if (event.origin !== location.origin || !event.data || event.data.source !== 'signalk-sailplan-ui') return;
+  if (event.data.type === 'ready' && !event.data.hasPlan) { /* fall back to your own editor */ }
+  if (event.data.type === 'sail-changed') { /* close the modal, refresh */ }
+});
+```
+
+Setting a sail needs the same access as in the full app (see below), and embedding changes nothing about that. A failed call is shown in the embedded page. Signal K does not block framing this page (checked on 2.33); a proxy in front of it might.
+
 ## Access levels and MFD tiles
 
 Signal K 2.x treats every `/plugins/<id>/...` route as admin-only unless the plugin opens it with `router.access(level)`. A device token, such as the one [signalk-navico-embedder](https://github.com/lukeescude/signalk-navico-embedder) injects for an MFD, is `readwrite` or `readonly`, never admin. So the routes a display needs are opened, and configuration stays admin-only:

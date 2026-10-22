@@ -16,6 +16,30 @@ window.sailplanStarted = true;
   const READ_BASE = '/signalk/v1/api/signalk-sailplan-ui';
   // index.html ships "Loading..." in the message area; only this script can know the plan is really empty.
   const NO_PLAN_TEXT = 'No sail plan uploaded yet. Click "Upload sail plan\u2026" to add a diagram (PNG/JPG/SVG), then "Edit hotspots" to mark each sail and reef.';
+  const NO_PLAN_TEXT_EMBEDDED = 'No sail plan uploaded yet.';
+
+  // ?embed=1 shows only the clickable diagram (the setup tools are hidden by CSS) and
+  // tells the embedding page what happens through postMessage. Messages go to this
+  // page's own origin unless ?origin=<host origin> names another host; never to '*'.
+  const query = new URLSearchParams(location.search);
+  const EMBED = query.get('embed') === '1';
+
+  function parentOrigin() {
+    const requested = query.get('origin');
+    if (!requested) return location.origin;
+    try {
+      const origin = new URL(requested).origin;
+      return origin === 'null' ? location.origin : origin;
+    } catch (e) {
+      return location.origin;
+    }
+  }
+
+  function notifyParent(message) {
+    if (!EMBED || window.parent === window) return;
+    window.parent.postMessage(Object.assign({ source: 'signalk-sailplan-ui', version: 1 }, message), parentOrigin());
+  }
+
   let SAILSCONFIG_BASE = '/plugins/sailsconfiguration'; // overridden by /state once loaded
   let POLL_INTERVAL_MS = 4000; // overridden by /config once loaded
 
@@ -40,6 +64,8 @@ window.sailplanStarted = true;
   const saveBtn = document.getElementById('save-btn');
 
   let editMode = false;
+  let stateLoaded = false; // the plan and hotspots were fetched
+  let hasPlan = false;     // ...and an image has been uploaded
   let hotspots = [];       // saved hotspots: {id, sailId, label, reefs, points:[[x,y],...]}
   let drawingPoints = [];  // points for the hotspot currently being traced
   let inventory = {};      // sailId -> {name, active, reducedState}
@@ -157,6 +183,8 @@ window.sailplanStarted = true;
     const cfg = await readJson('state', res, `${READ_BASE}/state`);
     if (!cfg) { emptyMsg.style.display = 'none'; return; }
     hotspots = cfg.hotspots || [];
+    stateLoaded = true;
+    hasPlan = !!cfg.imageUrl;
     if (cfg.sailsConfigBase) SAILSCONFIG_BASE = cfg.sailsConfigBase;
     if (cfg.pollInterval) POLL_INTERVAL_MS = cfg.pollInterval * 1000;
     if (cfg.imageUrl) {
@@ -165,7 +193,7 @@ window.sailplanStarted = true;
       emptyMsg.style.display = 'none';
     } else {
       img.style.display = 'none';
-      emptyMsg.textContent = NO_PLAN_TEXT;
+      emptyMsg.textContent = EMBED ? NO_PLAN_TEXT_EMBEDDED : NO_PLAN_TEXT;
       emptyMsg.style.display = 'block';
     }
     renderHotspotList();
@@ -322,6 +350,11 @@ window.sailplanStarted = true;
     if (ok) {
       await loadInventory();
       render();
+      const now = inventory[h.sailId] || {};
+      notifyParent({
+        type: 'sail-changed',
+        sail: { id: h.sailId, name: now.name || h.sailId, active: !!now.active, reefs: reefsOf(now) }
+      });
     }
   }
 
@@ -396,6 +429,7 @@ window.sailplanStarted = true;
     await loadConfig();
     await Promise.all([loadInventory(), loadArea()]);
     render();
+    notifyParent({ type: 'ready', ok: stateLoaded, hasPlan, hotspots: hotspots.length });
     pollTimer = setInterval(poll, POLL_INTERVAL_MS);
   })();
 })();

@@ -30,11 +30,14 @@ test('browser scripts avoid syntax that Chromium 69 cannot parse', () => {
 test('the app code is an external script, not inline', () => {
   assert.match(html, /<script src="app\.js"><\/script>/);
   assert.match(html, /<script src="http-problems\.js"><\/script>/);
-  // Only the small boot guard may stay inline, so the embedder transpiles the rest.
+  // Only two small inline scripts may stay (the embed marker and the boot guard), so
+  // the embedder transpiles everything else.
   const inline = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
-  assert.strictEqual(inline.length, 1);
-  assert.ok(inline[0].length < 800, 'inline script grew to ' + inline[0].length + ' characters');
-  assert.match(inline[0], /sailplanStarted/);
+  assert.strictEqual(inline.length, 2);
+  const total = inline.reduce((n, code) => n + code.length, 0);
+  assert.ok(total < 1000, 'inline scripts grew to ' + total + ' characters');
+  assert.ok(inline.some((code) => /sailplanStarted/.test(code)), 'boot guard missing');
+  assert.ok(inline.some((code) => /embed=1/.test(code)), 'embed marker missing');
 });
 
 test('the page says "Loading" until app.js has run, and app.js marks that it started', () => {
@@ -46,4 +49,22 @@ test('the page says "Loading" until app.js has run, and app.js marks that it sta
 
 test('layout does not rely on flex gap, which Chromium 69 ignores', () => {
   assert.doesNotMatch(html, /[\s;{]gap\s*:/);
+});
+
+test('?embed=1 hides the setup tools before the page is drawn', () => {
+  // the marker runs in <head>, ahead of the body
+  assert.ok(html.indexOf("className += ' embed'") < html.indexOf('<body>'));
+  for (const selector of ['h1', '#upload-btn', '#mode-btn', '#sidebar']) {
+    assert.ok(html.includes('html.embed ' + selector), selector + ' is not hidden in embed mode');
+  }
+});
+
+test('embed messages are tagged, versioned and never sent to any origin', () => {
+  const app = read('app.js');
+  assert.match(app, /source: 'signalk-sailplan-ui', version: 1/);
+  assert.match(app, /type: 'ready'/);
+  assert.match(app, /type: 'sail-changed'/);
+  // the target origin is always computed, never the wildcard
+  assert.doesNotMatch(app, /postMessage\([^;]*['"]\*['"]/);
+  assert.match(app, /\.postMessage\([^;]*parentOrigin\(\)\)/);
 });

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.0
+
+- Add embed mode: `/signalk-sailplan-ui/?embed=1` shows only the clickable diagram and the area readout, so another page (for example signalk-logbook) can use it in an iframe. The page sends `ready` and `sail-changed` messages to its host with `postMessage`, to the app's own origin or to the one named in `?origin=`, never to `*`. Documented in the README.
+
 ## 0.2.1
 
 - Fix the webapp showing "No sail plan uploaded yet" on an MFD behind signalk-navico-embedder. The inline script used optional chaining, which Chromium 69 cannot parse, and the embedder only transpiles external scripts, so nothing ran and the default message stayed. The app code is now an external `app.js` written without newer syntax. Verified in a real Chromium 69, both through the embedder and directly.
