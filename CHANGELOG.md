@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.1
+
+- Fix the webapp showing "No sail plan uploaded yet" on an MFD behind signalk-navico-embedder. The inline script used optional chaining, which Chromium 69 cannot parse, and the embedder only transpiles external scripts, so nothing ran and the default message stayed. The app code is now an external `app.js` written without newer syntax. Verified in a real Chromium 69, both through the embedder and directly.
+- The page now says "Loading…" until the script has run, and if it never starts it says so instead of looking like an empty plan.
+- Use margins instead of flex `gap`, which Chromium 69 ignores, so the header buttons no longer touch.
+- Add `.npmignore` so `.claude/` and `test/` are not published.
+- Tests that keep newer syntax out of the browser scripts and the app code out of an inline script.
+
 ## 0.2.0
 
 - Open `GET /state` and `GET /image` to readonly users with `router.access('readonly')`, falling back to plain routes on servers without `router.access`. Signal K 2.x makes every `/plugins/<id>/...` route admin-only unless opened, and a device token such as the one signalk-navico-embedder injects is never admin. Uploading an image and editing hotspots stay admin-only.
