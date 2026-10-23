@@ -12,6 +12,8 @@
 const fs = require('fs');
 const path = require('path');
 const bodyParser = require('body-parser');
+const { buildManifest, staticAssetHandler, registerManifestProvider, PUBLIC_DIR } = require('./plotterext');
+const { version } = require('./package.json');
 
 const pluginId = 'signalk-sailplan-ui';
 
@@ -137,9 +139,32 @@ module.exports = function (app) {
     fs.createReadStream(imagePath(cfg.imageExt)).pipe(res);
   }
 
+  // Public prefix for the plotter extension's iframe assets. /plugins/* is admin-only.
+  const ASSET_BASE = '/plotterext/' + pluginId;
+  let assetsMounted = false;
+
+  // The extension is optional: whatever goes wrong here must not stop the plugin itself.
+  function offerPlotterExtension() {
+    if (typeof app.registerResourceProvider !== 'function') {
+      debug('plotter extension not offered: this server has no resources API');
+      return;
+    }
+    try {
+      registerManifestProvider(app, pluginId, buildManifest(ASSET_BASE, version));
+      // app.use cannot be undone, so mount once however often the plugin restarts
+      if (!assetsMounted && typeof app.use === 'function') {
+        app.use(ASSET_BASE, staticAssetHandler(PUBLIC_DIR, ASSET_BASE));
+        assetsMounted = true;
+      }
+    } catch (e) {
+      (app.error || debug)('Could not offer the plotter extension: ' + e.message);
+    }
+  }
+
   plugin.start = function (options) {
     pluginOptions = { ...defaultOptions, ...(options || {}) };
     debug('starting with options %o', pluginOptions);
+    offerPlotterExtension();
   };
 
   plugin.stop = function () {

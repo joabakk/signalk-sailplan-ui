@@ -81,6 +81,17 @@ window.addEventListener('message', (event) => {
 
 Setting a sail needs the same access as in the full app (see below), and embedding changes nothing about that. A failed call is shown in the embedded page. Signal K does not block framing this page (checked on 2.33); a proxy in front of it might.
 
+## Chartplotter extension (Freeboard-SK)
+
+With the plugin enabled, a chartplotter that supports the [Plotter Extensions API](https://github.com/SignalK/freeboard-sk/blob/master/docs/api/plotter-extensions-api.md) gets two things, with nothing to install on the plotter:
+
+- A **Sail Plan** button in the toolbar. It opens the clickable sail plan as a floating window (or a panel on a host without windows), the same page as `?embed=1`, so you can set sails without leaving the chart.
+- A **Sails set** widget (2×1): the area set against the total, and which sails are flying with their reef, for example `48 / 56 m² set` and `Main R1 · Jib`. Tapping it opens the same window. It refreshes every few seconds.
+
+In Freeboard-SK, tap the grid icon in the top-right corner to show the toolbar, then the sail button. To place the widget, press and hold an empty cell in a widget area for about a second and a half (or right-click it and choose **Add widget here**), then pick **Sails set**. Widgets stack from the screen edge inward, so in a bottom area use the bottom row.
+
+Tested with Freeboard-SK 3.3.0 on Signal K 2.33. The extension is offered through the server's resources API, so the server must have one (Signal K 2.x); without it the plugin simply starts without the extension. Turning the plugin off removes it from the plotter. The window and the widget read the open Signal K API; setting a sail needs the same access as in the full app (see below).
+
 ## Access levels and MFD tiles
 
 Signal K 2.x treats every `/plugins/<id>/...` route as admin-only unless the plugin opens it with `router.access(level)`. A device token, such as the one [signalk-navico-embedder](https://github.com/lukeescude/signalk-navico-embedder) injects for an MFD, is `readwrite` or `readonly`, never admin. So the routes a display needs are opened, and configuration stays admin-only:
@@ -97,7 +108,7 @@ On servers without `router.access` the plugin registers plain routes instead; th
 
 ### Setting sails from an MFD
 
-Reading works with any token. Setting a sail calls `sailsconfiguration`, which is a different plugin, and as published (1.1.0) it leaves those routes admin-only, so a `readwrite` token gets `401`. They need `router.access('readwrite')` on the two `PUT /sails/:id/...` routes (and `readonly` on `GET /sails`). Until that is released, tap-to-set only works with an admin login; the page then says so instead of failing silently.
+Reading works with any token. Setting a sail calls `sailsconfiguration`, which is a different plugin. From version 1.2.1 it opens `GET /sails` to `readonly` users and the `PUT /sails/...` routes to `readwrite` users, so a `readwrite` token (such as the one an MFD proxy injects) can set sails. In 1.1.0 and earlier those routes are admin-only, so a `readwrite` token gets `401`, and tap-to-set only works with an admin login; the page says so instead of failing silently.
 
 The proxy must also forward that plugin's path. signalk-navico-embedder 1.8.0 forwards `/signalk`, `/skServer/loginStatus`, and for every enabled app both its path and `/plugins/<app path>`. That covers this plugin (id and webapp path are both `signalk-sailplan-ui`) but not `sailsconfiguration`, whose id differs from its webapp path `/@signalk/sailsconfiguration`. In an embedder build that has an `extraPluginPaths` option, add the plugin id `sailsconfiguration`; 1.8.0 as published has no such option, and without it the proxy answers `403` for those requests.
 

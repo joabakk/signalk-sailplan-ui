@@ -1,0 +1,3 @@
+signalk-plotterext-bus 0.24.0 (MIT, see LICENSE), the extension-side client.
+Copied unmodified from the package's dist/: extension.js and the two chunks it imports.
+https://github.com/joelkoz/signalk-plotterext-bus

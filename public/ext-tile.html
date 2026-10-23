@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Sails set</title>
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; background: transparent; }
+  body { font: 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #e6e9ef; }
+  #tile {
+    box-sizing: border-box; height: 100%; padding: 6px 10px; cursor: pointer; overflow: hidden;
+    background: rgba(18, 24, 32, 0.88); border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.12);
+    display: flex; flex-direction: column; justify-content: center;
+  }
+  #area { font-size: 20px; font-weight: 600; line-height: 1.1; }
+  #area small { font-size: 12px; font-weight: 400; color: #9aa4b2; margin-left: 4px; }
+  #sails { margin-top: 3px; color: #7bd88f; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #sails.none, #sails.problem { color: #9aa4b2; }
+  #sails.problem { color: #ff8a80; }
+</style>
+</head>
+<body>
+<div id="tile" role="button" tabindex="0">
+  <div id="area">&ndash;<small>m&sup2; set</small></div>
+  <div id="sails" class="none">Loading&hellip;</div>
+</div>
+<script src="http-problems.js"></script>
+<script type="module" src="ext-tile.js"></script>
+</body>
+</html>

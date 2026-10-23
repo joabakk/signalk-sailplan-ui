@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.0
+
+- Add a plotter extension (Plotter Extensions API v1, tested with Freeboard-SK 3.3.0): a **Sail Plan** toolbar button that opens the sail plan as a floating window, and a **Sails set** widget showing the area set and which sails are flying. The plugin registers the `plotterExtensions` manifest and serves the iframe assets from `/plotterext/signalk-sailplan-ui/`, a public route, since `/plugins/` is admin-only. The panel is the existing embed mode. Vendors the MIT-licensed `signalk-plotterext-bus` 0.24.0 client. A server without a resources API starts the plugin without the extension.
+- Documentation: `sailsconfiguration` 1.2.1 opens its routes to `readonly`/`readwrite` tokens (SignalK/sailsconfiguration#12), so a `readwrite` token can now set sails.
+
 ## 0.3.0
 
 - Add embed mode: `/signalk-sailplan-ui/?embed=1` shows only the clickable diagram and the area readout, so another page (for example signalk-logbook) can use it in an iframe. The page sends `ready` and `sail-changed` messages to its host with `postMessage`, to the app's own origin or to the one named in `?origin=`, never to `*`. Documented in the README.
