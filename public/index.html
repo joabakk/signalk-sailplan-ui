@@ -43,13 +43,16 @@ if (/[?&]embed=1(&|$)/.test(location.search)) document.documentElement.className
   button:disabled { opacity: .4; cursor: default; }
   /* Margins, not flex `gap`: Chromium 69 (the MFD) ignores gap and the items touch. */
   header > #area-readout, header > button { margin-left: 12px; }
-  #status:not(:empty), #problems:not(:empty) { margin-top: 6px; }
+  #status:not(:empty), #access:not(:empty), #problems:not(:empty) { margin-top: 6px; }
   .hotspot-row > * + * { margin-left: 6px; }
   #hs-clear { margin-left: 6px; }
   /* ?embed=1 shows only the clickable diagram; upload and hotspot editing stay in the full app. */
   html.embed h1, html.embed #upload-btn, html.embed #mode-btn, html.embed #sidebar { display: none; }
   html.embed header > #area-readout { margin-left: 0; }
   #status { font-size: 12px; color: #9aa4b2; flex-basis: 100%; }
+  #access { flex-basis: 100%; font-size: 12px; color: #9aa4b2; }
+  #access.flash { animation: access-flash 1.2s ease-out; }
+  @keyframes access-flash { 0%, 40% { color: #f1c40f; } 100% { color: #9aa4b2; } }
   #problems { flex-basis: 100%; font-size: 12px; }
   #problems div { padding: 1px 0; }
   #problems .error { color: #ff8a80; }
@@ -98,6 +101,11 @@ if (/[?&]embed=1(&|$)/.test(location.search)) document.documentElement.className
   #overlay polygon.active:hover { fill: rgba(56,224,123,0.95); }
   #overlay polygon.reefed { fill: rgba(241,196,15,0.85); stroke: #f1c40f; stroke-width: 0.7; }
   #overlay polygon.reefed:hover { fill: rgba(250,210,40,0.95); }
+  /* Sails this visitor may not set: still show what is set, but greyed out and inert. */
+  #overlay polygon.locked { opacity: .55; cursor: not-allowed; }
+  #overlay polygon.locked:hover { fill: rgba(255,255,255,0.06); stroke-width: 0.4; }
+  #overlay polygon.active.locked:hover { fill: rgba(46,204,113,0.85); stroke-width: 0.7; }
+  #overlay polygon.reefed.locked:hover { fill: rgba(241,196,15,0.85); stroke-width: 0.7; }
   #overlay circle.point { fill: #ff5252; stroke: #fff; stroke-width: 0.4; vector-effect: non-scaling-stroke; }
   #overlay polyline.drawing { fill: none; stroke: #ff5252; stroke-width: 0.4; vector-effect: non-scaling-stroke; }
   #overlay text.hlabel { font-size: 3px; fill: #fff; text-anchor: middle; pointer-events: none; paint-order: stroke; stroke: #000; stroke-width: 0.5px; }
@@ -136,6 +144,7 @@ if (/[?&]embed=1(&|$)/.test(location.search)) document.documentElement.className
   <button id="upload-btn">Upload sail plan…</button>
   <button id="mode-btn">Edit hotspots</button>
   <div id="status"></div>
+  <div id="access"></div>
   <div id="problems"></div>
 </header>
 

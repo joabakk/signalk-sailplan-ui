@@ -112,6 +112,10 @@ Reading works with any token. Setting a sail calls `sailsconfiguration`, which i
 
 The proxy must also forward that plugin's path. signalk-navico-embedder 1.8.0 forwards `/signalk`, `/skServer/loginStatus`, and for every enabled app both its path and `/plugins/<app path>`. That covers this plugin (id and webapp path are both `signalk-sailplan-ui`) but not `sailsconfiguration`, whose id differs from its webapp path `/@signalk/sailsconfiguration`. In an embedder build that has an `extraPluginPaths` option, add the plugin id `sailsconfiguration`; 1.8.0 as published has no such option, and without it the proxy answers `403` for those requests.
 
+### Visitors who cannot set sails
+
+When Signal K requires a login and `/skServer/loginStatus` says the visitor is not logged in, or is logged in `readonly`, the sails are shown greyed out with the current state still visible, and the header says why: "Log in to Signal K to set sails." or that the login is read-only. A tap highlights that line instead of sending a request. The page asks again when it regains focus, so it unlocks once the visitor has logged in elsewhere. With security off, or when `loginStatus` does not answer (a proxy that does not forward it), nothing is locked and a refused tap is reported as below.
+
 ### What the page tells you when something fails
 
 Every failed call is shown in the header with its method, path and status, instead of a generic error or an empty page:

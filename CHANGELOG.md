@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Grey out the sails for a visitor who cannot set them (not logged in on a secured server, or a `readonly` login) and say why in the header, instead of sending the request and showing a 401 after every tap. The current state stays visible, a tap highlights the hint, and the page checks again when it regains focus.
+
 ## 0.4.0
 
 - Add a plotter extension (Plotter Extensions API v1, tested with Freeboard-SK 3.3.0): a **Sail Plan** toolbar button that opens the sail plan as a floating window, and a **Sails set** widget showing the area set and which sails are flying. The plugin registers the `plotterExtensions` manifest and serves the iframe assets from `/plotterext/signalk-sailplan-ui/`, a public route, since `/plugins/` is admin-only. The panel is the existing embed mode. Vendors the MIT-licensed `signalk-plotterext-bus` 0.24.0 client. A server without a resources API starts the plugin without the extension.

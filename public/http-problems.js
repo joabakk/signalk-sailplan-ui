@@ -25,8 +25,21 @@
     return {
       loggedIn: body.status === 'loggedIn',
       level: body.userLevel || null,
-      username: body.username || null
+      username: body.username || null,
+      authRequired: body.authenticationRequired !== false
     };
+  }
+
+  // Why this visitor cannot set sails, or null when they can or it is unknown
+  // (no answer from loginStatus): then a tap is tried and a refusal is reported.
+  // sailsconfiguration takes writes from readwrite and admin logins.
+  function writeBlock(login) {
+    if (!login || !login.authRequired) return null;
+    if (!login.loggedIn) return { reason: 'login', text: 'Log in to Signal K to set sails.' };
+    if (login.level === 'readonly') {
+      return { reason: 'readonly', text: whoText(login) + ' A read-only login cannot set sails.' };
+    }
+    return null;
   }
 
   function whoText(login) {
@@ -90,5 +103,5 @@
     return { kind: 'error', text: status + ' ' + method + ' ' + path + ' failed.' };
   }
 
-  return { describe: describe, parseLoginStatus: parseLoginStatus };
+  return { describe: describe, parseLoginStatus: parseLoginStatus, writeBlock: writeBlock };
 });

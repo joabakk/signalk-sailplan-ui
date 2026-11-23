@@ -45,6 +45,7 @@ window.sailplanStarted = true;
 
   const statusEl = document.getElementById('status');
   const problemsEl = document.getElementById('problems');
+  const accessEl = document.getElementById('access');
   const areaEl = document.getElementById('area-readout');
   const stage = document.getElementById('stage');
   const img = document.getElementById('sail-image');
@@ -70,6 +71,7 @@ window.sailplanStarted = true;
   let drawingPoints = [];  // points for the hotspot currently being traced
   let inventory = {};      // sailId -> {name, active, reducedState}
   let pollTimer = null;
+  let writeBlocked = null; // HttpProblems.writeBlock(): why a tap cannot set sails, or null
 
   function setStatus(msg) { statusEl.textContent = msg || ''; }
 
@@ -110,6 +112,31 @@ window.sailplanStarted = true;
     } catch (e) { /* unknown is fine, the message says so */ }
     loginCache = { at: Date.now(), value };
     return value;
+  }
+
+  // A visitor who may not set sails sees the sails greyed out and why, instead
+  // of a 401 after every tap.
+  async function loadWriteAccess() {
+    writeBlocked = HttpProblems.writeBlock(await getLogin());
+    const text = writeBlocked ? writeBlocked.text : '';
+    if (accessEl.textContent === text) return;
+    accessEl.textContent = text;
+    resizeStage(); // the header grows and shrinks with the hint
+  }
+
+  // Coming back from logging in elsewhere: ask again rather than wait for the cache.
+  function recheckWriteAccess() {
+    if (document.hidden) return;
+    loginCache = null;
+    loadWriteAccess().then(render);
+  }
+  document.addEventListener('visibilitychange', recheckWriteAccess);
+  window.addEventListener('focus', recheckWriteAccess);
+
+  function flashAccessHint() {
+    accessEl.classList.remove('flash');
+    void accessEl.offsetWidth; // restart the animation on every tap
+    accessEl.classList.add('flash');
   }
 
   // Every call goes through here: returns the response when ok, otherwise
@@ -275,6 +302,7 @@ window.sailplanStarted = true;
       if (sail && sail.active && reefsOf(sail) === reefs) {
         poly.classList.add(reefs > 0 ? 'reefed' : 'active');
       }
+      if (writeBlocked && !editMode) poly.classList.add('locked');
       if (!editMode) {
         poly.addEventListener('click', () => onHotspotClick(h));
       }
@@ -333,6 +361,7 @@ window.sailplanStarted = true;
   // ---------- interaction: view mode (set sail state) ----------
 
   async function onHotspotClick(h) {
+    if (writeBlocked) { flashAccessHint(); return; }
     const sail = inventory[h.sailId];
     if (!sail) { setStatus(`Unknown sail "${h.sailId}" — check hotspot config.`); return; }
     const reefs = h.reefs || 0;
@@ -347,7 +376,12 @@ window.sailplanStarted = true;
         await request('write', 'PUT', `${SAILSCONFIG_BASE}/sails/${h.sailId}/active`, { body: { value: true } });
     }
     setStatus('');
-    if (ok) {
+    if (!ok) {
+      // a login that expired since the last check: show why from now on
+      loginCache = null;
+      await loadWriteAccess();
+      render();
+    } else {
       await loadInventory();
       render();
       const now = inventory[h.sailId] || {};
@@ -421,13 +455,13 @@ window.sailplanStarted = true;
   // ---------- polling ----------
 
   async function poll() {
-    await Promise.all([loadInventory(), loadArea()]);
+    await Promise.all([loadInventory(), loadArea(), loadWriteAccess()]);
     if (!editMode) render();
   }
 
   (async function init() {
     await loadConfig();
-    await Promise.all([loadInventory(), loadArea()]);
+    await Promise.all([loadInventory(), loadArea(), loadWriteAccess()]);
     render();
     notifyParent({ type: 'ready', ok: stateLoaded, hasPlan, hotspots: hotspots.length });
     pollTimer = setInterval(poll, POLL_INTERVAL_MS);

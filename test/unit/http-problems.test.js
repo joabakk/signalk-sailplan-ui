@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { describe, parseLoginStatus } = require('../../public/http-problems.js');
+const { describe, parseLoginStatus, writeBlock } = require('../../public/http-problems.js');
 
 const rw = { loggedIn: true, level: 'readwrite', username: 'navico-mfd' };
 
@@ -69,10 +69,33 @@ test('a network error names the path', () => {
 });
 
 test('parseLoginStatus reads Signal K\'s loginStatus answer', () => {
-  assert.deepStrictEqual(parseLoginStatus({ status: 'loggedIn', userLevel: 'readwrite', username: 'dev' }),
-    { loggedIn: true, level: 'readwrite', username: 'dev' });
+  assert.deepStrictEqual(parseLoginStatus({ status: 'loggedIn', userLevel: 'readwrite', username: 'dev', authenticationRequired: true }),
+    { loggedIn: true, level: 'readwrite', username: 'dev', authRequired: true });
   assert.deepStrictEqual(parseLoginStatus({ status: 'notLoggedIn' }),
-    { loggedIn: false, level: null, username: null });
+    { loggedIn: false, level: null, username: null, authRequired: true });
+  assert.strictEqual(parseLoginStatus({ status: 'notLoggedIn', authenticationRequired: false }).authRequired, false);
   assert.strictEqual(parseLoginStatus(null), null);
   assert.strictEqual(parseLoginStatus('nope'), null);
+});
+
+test('writeBlock asks a visitor who is not logged in to log in', () => {
+  const b = writeBlock(parseLoginStatus({ status: 'notLoggedIn', authenticationRequired: true }));
+  assert.strictEqual(b.reason, 'login');
+  assert.match(b.text, /Log in to Signal K to set sails/);
+});
+
+test('writeBlock tells a readonly login it cannot set sails', () => {
+  const b = writeBlock(parseLoginStatus({ status: 'loggedIn', userLevel: 'readonly', username: 'guest' }));
+  assert.strictEqual(b.reason, 'readonly');
+  assert.match(b.text, /Logged in as guest \(readonly\)\. A read-only login cannot set sails/);
+});
+
+test('writeBlock lets readwrite and admin logins set sails', () => {
+  assert.strictEqual(writeBlock(parseLoginStatus({ status: 'loggedIn', userLevel: 'readwrite', username: 'dev' })), null);
+  assert.strictEqual(writeBlock(parseLoginStatus({ status: 'loggedIn', userLevel: 'admin', username: 'a' })), null);
+});
+
+test('writeBlock blocks nothing without security or without an answer', () => {
+  assert.strictEqual(writeBlock(parseLoginStatus({ status: 'notLoggedIn', authenticationRequired: false })), null);
+  assert.strictEqual(writeBlock(null), null);
 });
