@@ -213,7 +213,7 @@ module.exports = function (app) {
 
     scoped(router, 'readonly').get('/image', handleImage);
 
-    // body: [{ id, sailId, label, reefs, furledRatio, points: [[xPct,yPct], ...] }, ...]
+    // body: [{ id, sailId, label, reefs, furledRatio, group, points: [[xPct,yPct], ...] }, ...]
     router.put('/hotspots', function (req, res) {
       if (!Array.isArray(req.body)) {
         res.status(400).json({ error: 'expected an array of hotspots' });

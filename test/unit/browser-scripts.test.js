@@ -17,7 +17,7 @@ const html = read('index.html');
 const NEWER_SYNTAX = /[A-Za-z0-9_\])]\?\.[A-Za-z_[(]|\?\?/;
 
 test('browser scripts avoid syntax that Chromium 69 cannot parse', () => {
-  for (const name of ['app.js', 'http-problems.js']) {
+  for (const name of ['app.js', 'http-problems.js', 'sail-groups.js']) {
     const match = NEWER_SYNTAX.exec(read(name));
     assert.strictEqual(match, null, name + ' uses ' + (match && match[0]));
   }
@@ -30,6 +30,7 @@ test('browser scripts avoid syntax that Chromium 69 cannot parse', () => {
 test('the app code is an external script, not inline', () => {
   assert.match(html, /<script src="app\.js"><\/script>/);
   assert.match(html, /<script src="http-problems\.js"><\/script>/);
+  assert.match(html, /<script src="sail-groups\.js"><\/script>/);
   // Only two small inline scripts may stay (the embed marker and the boot guard), so
   // the embedder transpiles everything else.
   const inline = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);

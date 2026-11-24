@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Add sail groups: hotspots that share a **Group** belong to sails that never fly together (a screecher and two spinnakers, say), and setting one stows the others of that group. Set in the hotspot editor; stored as `group` on the hotspot.
+
 ## 0.4.0
 
 - Add a plotter extension (Plotter Extensions API v1, tested with Freeboard-SK 3.3.0): a **Sail Plan** toolbar button that opens the sail plan as a floating window, and a **Sails set** widget showing the area set and which sails are flying. The plugin registers the `plotterExtensions` manifest and serves the iframe assets from `/plotterext/signalk-sailplan-ui/`, a public route, since `/plugins/` is admin-only. The panel is the existing embed mode. Vendors the MIT-licensed `signalk-plotterext-bus` 0.24.0 client. A server without a resources API starts the plugin without the extension.

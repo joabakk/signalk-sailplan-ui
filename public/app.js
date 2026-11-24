@@ -57,6 +57,7 @@ window.sailplanStarted = true;
   const hsSail = document.getElementById('hs-sail');
   const hsReef = document.getElementById('hs-reef');
   const hsLabel = document.getElementById('hs-label');
+  const hsGroup = document.getElementById('hs-group');
   const hsAdd = document.getElementById('hs-add');
   const hsClear = document.getElementById('hs-clear');
   const hsList = document.getElementById('hs-list');
@@ -315,7 +316,7 @@ window.sailplanStarted = true;
       row.className = 'hotspot-row';
       const name = document.createElement('div');
       name.className = 'name';
-      name.textContent = h.label || `${h.sailId} (reef ${h.reefs || 0})`;
+      name.textContent = (h.label || `${h.sailId} (reef ${h.reefs || 0})`) + (h.group ? ` [${h.group}]` : '');
       const del = document.createElement('button');
       del.textContent = '✕';
       del.title = 'Delete';
@@ -342,9 +343,15 @@ window.sailplanStarted = true;
     if (isCurrent) {
       ok = await request('write', 'PUT', `${SAILSCONFIG_BASE}/sails/${h.sailId}/active`, { body: { value: false } });
     } else {
+      const others = SailGroups.sailsToStow(hotspots, inventory, h);
       ok = await request('write', 'PUT', `${SAILSCONFIG_BASE}/sails/${h.sailId}/reducedState`,
         { body: { reefs, furledRatio: h.furledRatio || 0 } }) &&
         await request('write', 'PUT', `${SAILSCONFIG_BASE}/sails/${h.sailId}/active`, { body: { value: true } });
+      // Stowed only once the new sail is set, so a refused change never leaves the group bare.
+      for (const id of others) {
+        if (!ok) break;
+        ok = await request('write', 'PUT', `${SAILSCONFIG_BASE}/sails/${id}/active`, { body: { value: false } });
+      }
     }
     setStatus('');
     if (ok) {
@@ -372,13 +379,16 @@ window.sailplanStarted = true;
   hsAdd.addEventListener('click', () => {
     if (drawingPoints.length < 3) { setStatus('Trace at least 3 points before adding.'); return; }
     if (!hsSail.value) { setStatus('Load the sail inventory (sailsconfiguration) first.'); return; }
-    hotspots.push({
+    const hotspot = {
       id: 'h' + Date.now().toString(36),
       sailId: hsSail.value,
       reefs: Number(hsReef.value) || 0,
       label: hsLabel.value || `${hsSail.options[hsSail.selectedIndex].textContent}${Number(hsReef.value) ? ' - reef ' + hsReef.value : ''}`,
       points: drawingPoints
-    });
+    };
+    const group = hsGroup.value.trim();
+    if (group) hotspot.group = group;
+    hotspots.push(hotspot);
     drawingPoints = [];
     hsLabel.value = '';
     renderHotspotList();

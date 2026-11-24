@@ -163,6 +163,10 @@ if (/[?&]embed=1(&|$)/.test(location.search)) document.documentElement.className
       <label>Label</label>
       <input type="text" id="hs-label" placeholder="e.g. Main - Reef 1">
     </div>
+    <div class="form-row">
+      <label>Group (optional): setting a sail stows the others in its group</label>
+      <input type="text" id="hs-group" placeholder="e.g. downwind">
+    </div>
     <div style="display:flex;">
       <button id="hs-add" class="primary">Add hotspot</button>
       <button id="hs-clear">Clear points</button>
@@ -177,6 +181,7 @@ if (/[?&]embed=1(&|$)/.test(location.search)) document.documentElement.className
 </div>
 
 <script src="http-problems.js"></script>
+<script src="sail-groups.js"></script>
 <script src="app.js"></script>
 <script>
 // If app.js did not start (a syntax this browser cannot parse, or it failed to load),

@@ -52,6 +52,8 @@ Or install both from the Signal K App Store (search "Sails Configuration" and "S
 
 Leaving edit mode returns to the normal view: click a hotspot to set that sail/reef state, click it again to stow the sail.
 
+**Sails that never fly together** — give their hotspots the same **Group** (for example `downwind` for a screecher and two spinnakers on one halyard). Setting one of them then stows the others of that group that are set. A sail is stowed only after the new one is set, so a refused request leaves the old sail up. Hotspots without a group are independent, as before.
+
 ## Embedding in another page
 
 Open the app with `?embed=1` to show only the clickable diagram and the area readout. The title, upload, hotspot editing and side panel are hidden, so a host page such as a logbook can put it in a modal:
